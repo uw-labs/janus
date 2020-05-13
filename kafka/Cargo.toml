@@ -1,0 +1,20 @@
+[package]
+name = "janus-kafka"
+version = "0.1.0"
+authors = ["Scott Raine <me@nylar.io>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-core = "0.3"
+futures-sink = "0.3"
+futures-util = "0.3"
+owning_ref = "0.4"
+# rdkafka = "0.23"
+rdkafka = { git = "https://github.com/fede1024/rust-rdkafka", branch = "rdkafka-1.4.0" }
+janus = { path = "../" }
+
+[dev-dependencies]
+futures-util = { version = "0.3", features = ["sink"] }
+tokio = { version = "0.2", features = ["full"] }

@@ -1,0 +1,20 @@
+[package]
+name = "janus"
+version = "0.1.0"
+authors = ["Scott Raine <me@nylar.io>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-core = "0.3"
+futures-sink = "0.3"
+futures-util = { version = "0.3", features = ["sink"] }
+
+[workspace]
+members = [
+  "kafka",
+]
+exclude = [
+  "examples",
+]

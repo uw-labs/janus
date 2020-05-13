@@ -1,0 +1,13 @@
+[package]
+name = "janus-example-tokio-kafka"
+version = "0.1.0"
+authors = ["Scott Raine <me@nylar.io>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1"
+futures = "0.3"
+janus = { path = "../../" }
+janus-kafka = { path = "../../kafka" }
+structopt = "0.3"
+tokio = { version = "0.2", features = ["full"] }
