@@ -4,6 +4,12 @@ version = "0.1.0"
 authors = ["Scott Raine <me@nylar.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/uw-labs/janus"
+description = """
+Janus is an abstraction for synchronous/asynchronous message publishing and consumption.
+"""
+documentation = "https://docs.rs/janus/"
 
 [dependencies]
 futures-channel = { version = "0.3", features = ["sink"] }
