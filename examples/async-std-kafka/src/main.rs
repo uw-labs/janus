@@ -19,7 +19,7 @@ enum Opts {
         #[structopt(short, long)]
         topic: String,
         /// Maximum number of messages in-flight.
-        #[structopt(short, long, default_value = "1000")]
+        #[structopt(short = "s", long, default_value = "1000")]
         buffer_size: usize,
     },
     Subscribe {
@@ -36,7 +36,7 @@ enum Opts {
         #[structopt(short, long)]
         topics: String,
         /// Maximum number of messages in-flight.
-        #[structopt(short, long, default_value = "1000")]
+        #[structopt(short = "s", long, default_value = "1000")]
         buffer_size: usize,
     },
 }
@@ -74,7 +74,10 @@ async fn main() -> Result<(), Error> {
 
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let (subscriber, acker) = KafkaSubscriber::new(config, topics, buffer_size)?;
+            let rt = tokio::runtime::Runtime::new().unwrap();
+
+            let (subscriber, acker) =
+                rt.enter(|| KafkaSubscriber::new(config, topics, buffer_size).unwrap());
 
             message_handler(subscriber)
                 .try_join(janus::noop_ack_handler(acker).map_err(Error::new))

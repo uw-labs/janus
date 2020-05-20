@@ -8,6 +8,7 @@ edition = "2018"
 anyhow = "1"
 async-std = { version = "1", features = ["attributes", "unstable"]}
 futures = "0.3"
-janus = { path = "../../" }
+janus = "0.1"
 janus-kafka = { path = "../../kafka" }
 structopt = "0.3"
+tokio = { version = "0.2", default-features = false, features = ["rt-threaded"] }

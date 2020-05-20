@@ -18,7 +18,7 @@ enum Opts {
         #[structopt(short, long)]
         topic: String,
         /// Maximum number of messages in-flight.
-        #[structopt(short, long, default_value = "1000")]
+        #[structopt(short = "s", long, default_value = "1000")]
         buffer_size: usize,
     },
     Subscribe {
@@ -35,7 +35,7 @@ enum Opts {
         #[structopt(short, long)]
         topics: String,
         /// Maximum number of messages in-flight.
-        #[structopt(short, long, default_value = "1000")]
+        #[structopt(short = "s", long, default_value = "1000")]
         buffer_size: usize,
     },
 }
