@@ -70,12 +70,6 @@ impl fmt::Debug for KafkaSubscriber {
     }
 }
 
-impl Drop for KafkaSubscriber {
-    fn drop(&mut self) {
-        self.upstream.as_owner().stop();
-    }
-}
-
 impl Subscriber for KafkaSubscriber {
     type Message = SubscriberMessage;
     type Error = KafkaError;
