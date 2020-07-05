@@ -138,7 +138,7 @@ impl fmt::Debug for PublisherAcker {
 }
 
 impl AckHandler for PublisherAcker {
-    type Output = Pin<Box<dyn Future<Output = Result<(), KafkaError>>>>;
+    type Output = Pin<Box<dyn Future<Output = Result<(), KafkaError>> + Send + Sync + 'static>>;
     type Error = KafkaError;
 }
 
