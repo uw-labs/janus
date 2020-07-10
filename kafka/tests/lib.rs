@@ -8,6 +8,7 @@ use futures_util::{
 use janus::{Message, Statuser};
 use janus_kafka::{
     KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
+    TokioRuntime,
 };
 
 const BROKERS: &str = "localhost:9092";
@@ -56,7 +57,7 @@ async fn end_to_end() {
         offset: Offset::Earliest,
     };
 
-    let (mut subscriber, mut sub_acker) =
+    let (mut subscriber, mut sub_acker): (KafkaSubscriber<TokioRuntime>, _) =
         KafkaSubscriber::new(sub_config, &[TOPIC], BUFFER_SIZE).unwrap();
 
     subscriber.status().unwrap();
@@ -71,10 +72,8 @@ async fn end_to_end() {
 
         for _ in &messages {
             if let Some(msg) = subscriber.try_next().await.unwrap() {
-                let m = msg.message();
-
                 messages_tx
-                    .send(String::from_utf8(m.payload().to_vec()).unwrap())
+                    .send(String::from_utf8(msg.payload().to_vec()).unwrap())
                     .await
                     .unwrap();
 
@@ -103,6 +102,4 @@ async fn end_to_end() {
         HashSet::from_iter(messages_from_kafka.iter().map(|x| x.clone()));
 
     assert_eq!(expected_messages, actual_messages);
-
-    std::thread::sleep(std::time::Duration::from_secs(2));
 }

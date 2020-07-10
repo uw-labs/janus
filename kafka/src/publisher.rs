@@ -5,12 +5,11 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::error::KafkaError;
-use crate::{Config, IntoConfig};
+use crate::{Config, IntoConfig, MessageExt};
 
 use futures_channel::mpsc::{self, Receiver, Sender};
 use futures_core::Stream;
 use futures_sink::Sink;
-use futures_util::FutureExt;
 use janus::{AckHandler, Message, Publisher, Statuser};
 use rdkafka::client::Client;
 use rdkafka::producer::{FutureProducer, FutureRecord};
@@ -72,7 +71,7 @@ impl Publisher for KafkaPublisher {
     type Error = KafkaError;
 }
 
-impl<M: Message> Sink<M> for KafkaPublisher {
+impl<M: MessageExt> Sink<M> for KafkaPublisher {
     type Error = <Self as Publisher>::Error;
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -138,7 +137,7 @@ impl fmt::Debug for PublisherAcker {
 }
 
 impl AckHandler for PublisherAcker {
-    type Output = Pin<Box<dyn Future<Output = Result<(), KafkaError>> + Send + Sync + 'static>>;
+    type Output = DeliveryFuture;
     type Error = KafkaError;
 }
 
@@ -159,11 +158,32 @@ impl Stream for PublisherAcker {
                     Err((e, _)) => return Poll::Ready(Some(Err(e.into()))),
                 };
 
-                Poll::Ready(Some(Ok(Pin::from(Box::new(delivery_fut.map(|_| Ok(())))))))
+                Poll::Ready(Some(Ok(DeliveryFuture {
+                    inner: delivery_fut,
+                })))
             }
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+/// A future returned when a Kafka message is produced
+pub struct DeliveryFuture {
+    inner: rdkafka::producer::future_producer::DeliveryFuture,
+}
+
+impl fmt::Debug for DeliveryFuture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DeliveryFuture").finish()
+    }
+}
+
+impl Future for DeliveryFuture {
+    type Output = Result<(), KafkaError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.inner).poll(cx).map(|_| Ok(()))
     }
 }
 
@@ -179,13 +199,15 @@ impl Message for PublisherMessage {
     fn payload(&self) -> &[u8] {
         &self.payload
     }
+}
 
+impl MessageExt for PublisherMessage {
     fn topic(&self) -> &str {
         &self.topic
     }
 
     fn key(&self) -> Option<&str> {
-        self.key.as_ref().map(|x| &**x)
+        self.key.as_deref()
     }
 }
 

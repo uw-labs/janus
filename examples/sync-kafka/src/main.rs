@@ -7,6 +7,7 @@ use futures::SinkExt;
 use janus::{AckHandler, Message, Publisher, Subscriber};
 use janus_kafka::{
     KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
+    TokioRuntime,
 };
 use structopt::StructOpt;
 
@@ -87,7 +88,7 @@ fn main() -> Result<(), Error> {
 
             let rt = tokio::runtime::Runtime::new().unwrap();
 
-            let (subscriber, acker) =
+            let (subscriber, acker): (KafkaSubscriber<TokioRuntime>, _) =
                 rt.enter(|| KafkaSubscriber::new(config, topics, buffer_size).unwrap());
 
             let threads = vec![

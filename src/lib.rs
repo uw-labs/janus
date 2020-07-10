@@ -20,24 +20,16 @@ use futures_util::{sink::SinkExt, stream::TryStreamExt};
 pub trait Message: Debug {
     /// Returns the payload of the message.
     fn payload(&self) -> &[u8];
-
-    /// Returns the source topic of the message.
-    fn topic(&self) -> &str;
-
-    /// Returns the key of the message, or `None` if there is no key.
-    fn key(&self) -> Option<&str> {
-        None
-    }
 }
 
 /// Wraps a message with a channel for sending acknowledgments.
 #[derive(Debug)]
-pub struct AckMessage<M: Message> {
+pub struct AckMessage<M> {
     message: M,
     acks_tx: Sender<M>,
 }
 
-impl<M: Message> AckMessage<M> {
+impl<M> AckMessage<M> {
     /// Creates a new acknowledged message.
     pub fn new(message: M, acks_tx: Sender<M>) -> Self {
         Self { message, acks_tx }
@@ -55,13 +47,19 @@ impl<M: Message> AckMessage<M> {
     }
 }
 
+impl<M: Message> Message for AckMessage<M> {
+    fn payload(&self) -> &[u8] {
+        &self.message().payload()
+    }
+}
+
 /// Produces a stream of `Message`s.
 pub trait Subscriber:
     Stream<Item = Result<AckMessage<<Self as Subscriber>::Message>, <Self as Subscriber>::Error>>
     + Unpin
 {
     /// The type of `Message` that the subscriber will produce when successful.
-    type Message: Message;
+    type Message;
 
     /// The type of `Error` that the subscriber will produce when it fails.
     type Error: Error + Send + Sync + 'static;
@@ -72,7 +70,7 @@ pub trait Publisher:
     Sink<<Self as Publisher>::Message, Error = <Self as Publisher>::Error> + Unpin
 {
     /// The type of `Message` that the publisher will produce when successful.
-    type Message: Message;
+    type Message;
 
     /// The type of `Error` that the publisher will produce when it fails.
     type Error: Error + Send + Sync + 'static;
@@ -101,6 +99,6 @@ pub trait Statuser {
 /// A convenience function to continuously processes acks until an error is
 /// encountered.
 pub async fn noop_ack_handler<A: AckHandler<Output = ()>>(mut handler: A) -> Result<(), A::Error> {
-    while let Some(_) = handler.try_next().await? {}
+    while handler.try_next().await?.is_some() {}
     Ok(())
 }

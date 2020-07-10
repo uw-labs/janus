@@ -2,10 +2,11 @@ use std::future::Future;
 
 use anyhow::Error;
 use async_std::prelude::*;
-use futures::{SinkExt, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{SinkExt, TryFutureExt, TryStreamExt};
 use janus::{AckHandler, Message, Publisher, Subscriber};
 use janus_kafka::{
-    KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
+    KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SmolRuntime,
+    SubscriberConfig,
 };
 use structopt::StructOpt;
 
@@ -56,7 +57,7 @@ async fn main() -> Result<(), Error> {
             let (publisher, acker) = KafkaPublisher::new(config, buffer_size)?;
 
             publish_message(publisher, &topic)
-                .try_join(publisher_ack_handler(acker).map_err(Error::new))
+                .try_join(janus_kafka::noop_ack_handler(acker).map_err(Error::new))
                 .await?;
         }
         Opts::Subscribe {
@@ -74,10 +75,8 @@ async fn main() -> Result<(), Error> {
 
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let rt = tokio::runtime::Runtime::new().unwrap();
-
-            let (subscriber, acker) =
-                rt.enter(|| KafkaSubscriber::new(config, topics, buffer_size).unwrap());
+            let (subscriber, acker): (KafkaSubscriber<SmolRuntime>, _) =
+                KafkaSubscriber::new(config, topics, buffer_size)?;
 
             message_handler(subscriber)
                 .try_join(janus::noop_ack_handler(acker).map_err(Error::new))
@@ -92,17 +91,11 @@ async fn publish_message<P: Publisher<Message = PublisherMessage>>(
     mut publisher: P,
     topic: &str,
 ) -> Result<(), Error> {
-    use async_std::stream;
-    use std::time::Duration;
-
-    let mut interval = stream::interval(Duration::from_millis(50));
-
-    while let Some(_) = interval.next().await {
+    loop {
         let msg = PublisherMessage::new(b"hello", topic, None);
 
         publisher.send(msg).await?;
     }
-    Ok(())
 }
 
 async fn message_handler<M: Message, S: Subscriber<Message = M>>(
@@ -111,16 +104,6 @@ async fn message_handler<M: Message, S: Subscriber<Message = M>>(
     while let Some(m) = subscriber.try_next().await? {
         println!("Got message: {:?}", m.message());
         m.ack().await?;
-    }
-    Ok(())
-}
-
-async fn publisher_ack_handler<A: AckHandler>(mut handler: A) -> Result<(), A::Error>
-where
-    <A as janus::AckHandler>::Output: Future<Output = Result<(), A::Error>>,
-{
-    while let Some(fut) = handler.try_next().await? {
-        fut.await?;
     }
     Ok(())
 }
