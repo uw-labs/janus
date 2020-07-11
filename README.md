@@ -1,5 +1,12 @@
 # Janus
 
+[![Latest Version]][crates.io] [![Latest Docs]][docs.rs]
+
+[Latest Version]: https://img.shields.io/crates/v/janus.svg?style=flat-square
+[crates.io]: https://crates.io/crates/janus
+[Latest Docs]: https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square
+[docs.rs]: https://docs.rs/janus
+
 Janus is an abstraction for synchronous/asynchronous message publishing and consumption.
 
 ## License
