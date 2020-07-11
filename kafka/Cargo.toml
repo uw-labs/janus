@@ -10,7 +10,7 @@ futures-channel = { version = "0.3", features = ["sink"] }
 futures-core = "0.3"
 futures-sink = "0.3"
 futures-util = "0.3"
-janus = { version = "0.1", path = "../" }
+janus = { version = "0.2", path = "../" }
 owning_ref = "0.4"
 rdkafka = { version = "0.24", default-features = false, features = ["libz"] }
 smol = { version = "0.1", optional = true }
