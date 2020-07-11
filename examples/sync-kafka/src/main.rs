@@ -86,14 +86,18 @@ fn main() -> Result<(), Error> {
 
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let rt = tokio::runtime::Runtime::new().unwrap();
-
             let (subscriber, acker): (KafkaSubscriber<TokioRuntime>, _) =
-                rt.enter(|| KafkaSubscriber::new(config, topics, buffer_size).unwrap());
+                KafkaSubscriber::new(config, topics, buffer_size).unwrap();
 
             let threads = vec![
                 spawn(move || {
-                    message_handler(subscriber).unwrap();
+                    let rt = tokio::runtime::Builder::new()
+                        .threaded_scheduler()
+                        .enable_all()
+                        .build()
+                        .unwrap();
+
+                    rt.enter(|| message_handler(subscriber).unwrap());
                 }),
                 spawn(move || {
                     ack_handler(acker).unwrap();

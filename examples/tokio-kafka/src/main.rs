@@ -1,8 +1,6 @@
-use std::future::Future;
-
 use anyhow::Error;
 use futures::{SinkExt, TryFutureExt, TryStreamExt};
-use janus::{AckHandler, Message, Publisher, Subscriber};
+use janus::{Message, Publisher, Subscriber};
 use janus_kafka::{
     KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
     TokioRuntime,
@@ -55,10 +53,12 @@ async fn main() -> Result<(), Error> {
 
             let (publisher, acker) = KafkaPublisher::new(config, buffer_size)?;
 
-            tokio::try_join!(
-                publish_message(publisher, &topic),
-                janus_kafka::noop_ack_handler(acker).map_err(Error::new)
-            )?;
+            let publisher_task = tokio::spawn(publish_message(publisher, topic.to_owned()));
+            let acker_task = tokio::spawn(janus_kafka::noop_ack_handler(acker).map_err(Error::new));
+
+            tokio::try_join!(async { publisher_task.await.unwrap() }, async {
+                acker_task.await.unwrap()
+            })?;
         }
         Opts::Subscribe {
             brokers,
@@ -78,10 +78,12 @@ async fn main() -> Result<(), Error> {
             let (subscriber, acker): (KafkaSubscriber<TokioRuntime>, _) =
                 KafkaSubscriber::new(config, topics, buffer_size)?;
 
-            tokio::try_join!(
-                message_handler(subscriber),
-                janus::noop_ack_handler(acker).map_err(Error::new)
-            )?;
+            let handler_task = tokio::spawn(message_handler(subscriber));
+            let acker_task = tokio::spawn(janus::noop_ack_handler(acker).map_err(Error::new));
+
+            tokio::try_join!(async { handler_task.await.unwrap() }, async {
+                acker_task.await.unwrap()
+            })?;
         }
     }
 
@@ -90,10 +92,10 @@ async fn main() -> Result<(), Error> {
 
 async fn publish_message<P: Publisher<Message = PublisherMessage>>(
     mut publisher: P,
-    topic: &str,
+    topic: String,
 ) -> Result<(), Error> {
     loop {
-        let msg = PublisherMessage::new(b"hello", topic, None);
+        let msg = PublisherMessage::new(b"hello", &topic, None);
 
         publisher.send(msg).await?;
     }

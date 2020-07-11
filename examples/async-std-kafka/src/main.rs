@@ -1,9 +1,7 @@
-use std::future::Future;
-
 use anyhow::Error;
 use async_std::prelude::*;
 use futures::{SinkExt, TryFutureExt, TryStreamExt};
-use janus::{AckHandler, Message, Publisher, Subscriber};
+use janus::{Message, Publisher, Subscriber};
 use janus_kafka::{
     KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SmolRuntime,
     SubscriberConfig,
