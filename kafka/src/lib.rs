@@ -31,6 +31,9 @@ pub use crate::smol::SmolRuntime;
 #[cfg(feature = "tokio-rt")]
 pub use rdkafka::util::TokioRuntime;
 
+#[cfg(feature = "instrumented")]
+pub use prometheus::{opts, Opts};
+
 /// Message extension methods for Kafka messages
 pub trait MessageExt: Message {
     /// The topic of the message.
@@ -76,6 +79,57 @@ where
 {
     while let Some(fut) = handler.try_next().await? {
         fut.await?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "instrumented")]
+/// Awaits each future returned by the ack handler and increments a metric.
+/// A convenience function to continuously processes acks until an error is
+/// encountered.
+pub async fn instrumented_publisher_ack_handler(
+    mut handler: PublisherAcker,
+    opts: prometheus::Opts,
+) -> Result<(), KafkaError> {
+    let counter = prometheus::register_counter_vec!(opts, &["status", "topic"]).unwrap();
+
+    while let Some(fut) = handler.try_next().await? {
+        fut.await
+            .map(|m| {
+                counter.with_label_values(&["success", m.topic()]).inc();
+                ()
+            })
+            .map_err(|(m, e)| {
+                counter.with_label_values(&["error", m.topic()]).inc();
+                e
+            })?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "instrumented")]
+/// For each ack increments a metric depending on the variant in the result.
+/// A convenience function to continuously processes acks until an error is
+/// encountered.
+pub async fn instrumented_subscriber_ack_handler<M, A>(
+    mut handler: A,
+    opts: prometheus::Opts,
+) -> Result<(), KafkaError>
+where
+    M: MessageExt,
+    A: AckHandler<Output = Result<M, (M, KafkaError)>, Error = KafkaError>,
+{
+    let counter = prometheus::register_counter_vec!(opts, &["status", "topic"]).unwrap();
+
+    while let Some(res) = handler.try_next().await? {
+        res.map(|m| {
+            counter.with_label_values(&["success", m.topic()]).inc();
+            ()
+        })
+        .map_err(|(m, e)| {
+            counter.with_label_values(&["error", m.topic()]).inc();
+            e
+        })?
     }
     Ok(())
 }

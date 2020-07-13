@@ -135,7 +135,7 @@ impl fmt::Debug for SubscriberAcker {
 }
 
 impl AckHandler for SubscriberAcker {
-    type Output = ();
+    type Output = Result<SubscriberMessage, (SubscriberMessage, KafkaError)>;
     type Error = KafkaError;
 }
 
@@ -153,8 +153,8 @@ impl Stream for SubscriberAcker {
                 );
 
                 match self.consumer.commit(&tpl, CommitMode::Async) {
-                    Ok(_) => Poll::Ready(Some(Ok(()))),
-                    Err(e) => Poll::Ready(Some(Err(e.into()))),
+                    Ok(_) => Poll::Ready(Some(Ok(Ok(m)))),
+                    Err(e) => Poll::Ready(Some(Ok(Err((m, e.into()))))),
                 }
             }
             Poll::Ready(None) => Poll::Ready(None),

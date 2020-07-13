@@ -18,6 +18,7 @@ futures-sink = "0.3"
 futures-util = "0.3"
 janus = { version = "0.2", path = "../" }
 owning_ref = "0.4"
+prometheus = { version = "0.9", default-features = false, optional = true }
 rdkafka = { version = "0.24", default-features = false, features = ["libz"] }
 smol = { version = "0.1", optional = true }
 
@@ -25,6 +26,7 @@ smol = { version = "0.1", optional = true }
 default = ["tokio-rt"]
 tokio-rt = ["rdkafka/tokio"]
 smol-rt = ["smol"]
+instrumented = ["prometheus"]
 
 [dev-dependencies]
 futures-util = { version = "0.3", features = ["sink"] }

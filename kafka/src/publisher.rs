@@ -44,10 +44,7 @@ impl KafkaPublisher {
 
         let (messages_tx, messages_rx) = mpsc::channel(buffer_size);
 
-        let acker = PublisherAcker {
-            producer: producer.clone(),
-            messages_rx,
-        };
+        let acker = PublisherAcker::new(producer.clone(), messages_rx);
 
         Ok((
             Self {
@@ -128,6 +125,15 @@ pub struct PublisherAcker {
     messages_rx: Receiver<PublisherMessage>,
 }
 
+impl PublisherAcker {
+    fn new(producer: Arc<FutureProducer>, messages_rx: Receiver<PublisherMessage>) -> Self {
+        Self {
+            producer,
+            messages_rx,
+        }
+    }
+}
+
 impl fmt::Debug for PublisherAcker {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PublisherAcker")
@@ -160,6 +166,7 @@ impl Stream for PublisherAcker {
 
                 Poll::Ready(Some(Ok(DeliveryFuture {
                     inner: delivery_fut,
+                    message: Some(m),
                 })))
             }
             Poll::Ready(None) => Poll::Ready(None),
@@ -171,6 +178,7 @@ impl Stream for PublisherAcker {
 /// A future returned when a Kafka message is produced
 pub struct DeliveryFuture {
     inner: rdkafka::producer::future_producer::DeliveryFuture,
+    message: Option<PublisherMessage>,
 }
 
 impl fmt::Debug for DeliveryFuture {
@@ -180,10 +188,13 @@ impl fmt::Debug for DeliveryFuture {
 }
 
 impl Future for DeliveryFuture {
-    type Output = Result<(), KafkaError>;
+    type Output = Result<PublisherMessage, (PublisherMessage, KafkaError)>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx).map(|_| Ok(()))
+        Pin::new(&mut self.inner).poll(cx).map(|res| match res {
+            Ok(_) => Ok(self.message.take().unwrap()),
+            Err(e) => Err((self.message.take().unwrap(), e.into())),
+        })
     }
 }
 
