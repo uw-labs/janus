@@ -10,6 +10,8 @@
 
 mod error;
 mod publisher;
+#[cfg(feature = "serde")]
+mod serde;
 #[cfg(feature = "smol-rt")]
 mod smol;
 mod subscriber;
