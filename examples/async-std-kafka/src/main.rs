@@ -55,7 +55,7 @@ async fn main() -> Result<(), Error> {
             let (publisher, acker) = KafkaPublisher::new(config, buffer_size)?;
 
             publish_message(publisher, &topic)
-                .try_join(janus_kafka::noop_ack_handler(acker).map_err(Error::new))
+                .try_join(janus_kafka::noop_publisher_ack_handler(acker).map_err(Error::new))
                 .await?;
         }
         Opts::Subscribe {
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Error> {
                 KafkaSubscriber::new(config, topics, buffer_size)?;
 
             message_handler(subscriber)
-                .try_join(janus::noop_ack_handler(acker).map_err(Error::new))
+                .try_join(janus_kafka::noop_subscriber_ack_handler(acker).map_err(Error::new))
                 .await?;
         }
     }
@@ -85,10 +85,10 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-async fn publish_message<P: Publisher<Message = PublisherMessage>>(
-    mut publisher: P,
-    topic: &str,
-) -> Result<(), Error> {
+async fn publish_message<P>(mut publisher: P, topic: &str) -> Result<(), Error>
+where
+    P: Publisher<Message = PublisherMessage>,
+{
     loop {
         let msg = PublisherMessage::new(b"hello", topic, None);
 
@@ -96,9 +96,11 @@ async fn publish_message<P: Publisher<Message = PublisherMessage>>(
     }
 }
 
-async fn message_handler<M: Message, S: Subscriber<Message = M>>(
-    mut subscriber: S,
-) -> Result<(), Error> {
+async fn message_handler<M, S>(mut subscriber: S) -> Result<(), Error>
+where
+    M: Message,
+    S: Subscriber<Message = M>,
+{
     while let Some(m) = subscriber.try_next().await? {
         println!("Got message: {:?}", m.message());
         m.ack().await?;

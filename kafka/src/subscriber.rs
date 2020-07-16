@@ -14,9 +14,7 @@ use futures_core::Stream;
 use janus::{AckHandler, AckMessage, Message, Statuser, Subscriber};
 use owning_ref::OwningHandle;
 use rdkafka::client::Client;
-use rdkafka::consumer::{
-    CommitMode, Consumer, DefaultConsumerContext, MessageStream, StreamConsumer,
-};
+use rdkafka::consumer::{Consumer, DefaultConsumerContext, MessageStream, StreamConsumer};
 use rdkafka::message::Message as _;
 use rdkafka::topic_partition_list::{self, TopicPartitionList};
 use rdkafka::types::RDKafkaType;
@@ -149,10 +147,10 @@ impl Stream for SubscriberAcker {
                 tpl.add_partition_offset(
                     &m.topic,
                     m.partition,
-                    topic_partition_list::Offset::Offset(m.offset),
+                    topic_partition_list::Offset::Offset(m.offset + 1),
                 );
 
-                match self.consumer.commit(&tpl, CommitMode::Async) {
+                match self.consumer.store_offsets(&tpl) {
                     Ok(_) => Poll::Ready(Some(Ok(Ok(m)))),
                     Err(e) => Poll::Ready(Some(Ok(Err((m, e.into()))))),
                 }
@@ -205,8 +203,10 @@ impl<'a> IntoConfig for SubscriberConfig<'a> {
         config.set("bootstrap.servers", self.brokers);
         config.set("group.id", self.group_id);
         config.set("auto.offset.reset", &self.offset.to_string());
-        config.set("enable.auto.commit", "false");
+        config.set("enable.auto.commit", "true");
         config.set("enable.partition.eof", "false");
+        config.set("enable.auto.offset.store", "false");
+        config.set("auto.commit.interval.ms", "500");
 
         config
     }

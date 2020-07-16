@@ -72,25 +72,44 @@ impl<M: MessageExt> MessageExt for AckMessage<M> {
     }
 }
 
-/// Awaits each future returned by the ack handler.
-pub async fn noop_ack_handler<A: AckHandler>(mut handler: A) -> Result<(), A::Error>
+/// Awaits each future returned by the publisher ack handler.
+pub async fn noop_publisher_ack_handler<M, A>(mut handler: A) -> Result<(), A::Error>
 where
-    <A as AckHandler>::Output: Future<Output = Result<(), A::Error>>,
+    M: MessageExt,
+    A: AckHandler,
+    <A as janus::AckHandler>::Output: Future<Output = Result<M, (M, A::Error)>>,
 {
     while let Some(fut) = handler.try_next().await? {
-        fut.await?;
+        fut.await.map(|_| ()).map_err(|(_, e)| e)?;
     }
     Ok(())
 }
 
-#[cfg(feature = "instrumented")]
+/// Acknowledges each ack, if the result variant is an error, the error is propagated.
+pub async fn noop_subscriber_ack_handler<M, A>(mut handler: A) -> Result<(), KafkaError>
+where
+    M: MessageExt,
+    A: AckHandler<Output = Result<M, (M, KafkaError)>, Error = KafkaError>,
+{
+    while let Some(res) = handler.try_next().await? {
+        res.map(|_| ()).map_err(|(_, e)| e)?;
+    }
+    Ok(())
+}
+
 /// Awaits each future returned by the ack handler and increments a metric.
 /// A convenience function to continuously processes acks until an error is
 /// encountered.
-pub async fn instrumented_publisher_ack_handler(
-    mut handler: PublisherAcker,
+#[cfg(feature = "instrumented")]
+pub async fn instrumented_publisher_ack_handler<M, A>(
+    mut handler: A,
     opts: prometheus::Opts,
-) -> Result<(), KafkaError> {
+) -> Result<(), A::Error>
+where
+    M: MessageExt,
+    A: AckHandler,
+    <A as janus::AckHandler>::Output: Future<Output = Result<M, (M, A::Error)>>,
+{
     let counter = prometheus::register_counter_vec!(opts, &["status", "topic"]).unwrap();
 
     while let Some(fut) = handler.try_next().await? {
@@ -107,10 +126,10 @@ pub async fn instrumented_publisher_ack_handler(
     Ok(())
 }
 
-#[cfg(feature = "instrumented")]
 /// For each ack increments a metric depending on the variant in the result.
 /// A convenience function to continuously processes acks until an error is
 /// encountered.
+#[cfg(feature = "instrumented")]
 pub async fn instrumented_subscriber_ack_handler<M, A>(
     mut handler: A,
     opts: prometheus::Opts,

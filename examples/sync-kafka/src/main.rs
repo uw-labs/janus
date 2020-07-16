@@ -6,8 +6,8 @@ use futures::executor::{block_on, block_on_stream};
 use futures::SinkExt;
 use janus::{AckHandler, Message, Publisher, Subscriber};
 use janus_kafka::{
-    KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
-    TokioRuntime,
+    KafkaPublisher, KafkaSubscriber, MessageExt, Offset, PublisherConfig, PublisherMessage,
+    SubscriberConfig, TokioRuntime,
 };
 use structopt::StructOpt;
 
@@ -113,7 +113,10 @@ fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn ack_handler<H: AckHandler>(acks: H) -> Result<(), Error> {
+fn ack_handler<H>(acks: H) -> Result<(), Error>
+where
+    H: AckHandler,
+{
     for ack in block_on_stream(acks) {
         ack?;
     }
@@ -121,10 +124,10 @@ fn ack_handler<H: AckHandler>(acks: H) -> Result<(), Error> {
     Ok(())
 }
 
-fn publish_message<P: Publisher<Message = PublisherMessage>>(
-    mut publisher: P,
-    topic: &str,
-) -> Result<(), Error> {
+fn publish_message<P>(mut publisher: P, topic: &str) -> Result<(), Error>
+where
+    P: Publisher<Message = PublisherMessage>,
+{
     use std::thread::sleep;
     use std::time::Duration;
 
@@ -137,7 +140,11 @@ fn publish_message<P: Publisher<Message = PublisherMessage>>(
     }
 }
 
-fn message_handler<M: Message, S: Subscriber<Message = M>>(subscriber: S) -> Result<(), Error> {
+fn message_handler<M, S>(subscriber: S) -> Result<(), Error>
+where
+    M: Message,
+    S: Subscriber<Message = M>,
+{
     let messages = block_on_stream(subscriber);
 
     for message in messages {
@@ -150,13 +157,15 @@ fn message_handler<M: Message, S: Subscriber<Message = M>>(subscriber: S) -> Res
     Ok(())
 }
 
-fn publisher_ack_handler<A: AckHandler>(handler: A) -> Result<(), A::Error>
+fn publisher_ack_handler<M, A>(handler: A) -> Result<(), A::Error>
 where
-    <A as janus::AckHandler>::Output: Future<Output = Result<(), A::Error>>,
+    M: MessageExt,
+    A: AckHandler,
+    <A as janus::AckHandler>::Output: Future<Output = Result<M, (M, A::Error)>>,
 {
     for ack in block_on_stream(handler) {
         let fut = ack?;
-        block_on(fut)?;
+        block_on(fut).map_err(|(_, e)| e)?;
     }
 
     Ok(())

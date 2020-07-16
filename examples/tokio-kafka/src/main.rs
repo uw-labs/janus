@@ -54,7 +54,8 @@ async fn main() -> Result<(), Error> {
             let (publisher, acker) = KafkaPublisher::new(config, buffer_size)?;
 
             let publisher_task = tokio::spawn(publish_message(publisher, topic.to_owned()));
-            let acker_task = tokio::spawn(janus_kafka::noop_ack_handler(acker).map_err(Error::new));
+            let acker_task =
+                tokio::spawn(janus_kafka::noop_publisher_ack_handler(acker).map_err(Error::new));
 
             tokio::try_join!(async { publisher_task.await.unwrap() }, async {
                 acker_task.await.unwrap()
@@ -79,7 +80,8 @@ async fn main() -> Result<(), Error> {
                 KafkaSubscriber::new(config, topics, buffer_size)?;
 
             let handler_task = tokio::spawn(message_handler(subscriber));
-            let acker_task = tokio::spawn(janus::noop_ack_handler(acker).map_err(Error::new));
+            let acker_task =
+                tokio::spawn(janus_kafka::noop_subscriber_ack_handler(acker).map_err(Error::new));
 
             tokio::try_join!(async { handler_task.await.unwrap() }, async {
                 acker_task.await.unwrap()
@@ -90,20 +92,25 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-async fn publish_message<P: Publisher<Message = PublisherMessage>>(
-    mut publisher: P,
-    topic: String,
-) -> Result<(), Error> {
-    loop {
-        let msg = PublisherMessage::new(b"hello", &topic, None);
+async fn publish_message<P>(mut publisher: P, topic: String) -> Result<(), Error>
+where
+    P: Publisher<Message = PublisherMessage>,
+{
+    let key = "foo";
+
+    for _ in 1..=20i32 {
+        let msg = PublisherMessage::new(b"hello", &topic, Some(key));
 
         publisher.send(msg).await?;
     }
+    Ok(())
 }
 
-async fn message_handler<M: Message, S: Subscriber<Message = M>>(
-    mut subscriber: S,
-) -> Result<(), Error> {
+async fn message_handler<M, S>(mut subscriber: S) -> Result<(), Error>
+where
+    M: Message,
+    S: Subscriber<Message = M>,
+{
     while let Some(m) = subscriber.try_next().await? {
         println!("Got message: {:?}", m.message());
         m.ack().await?;
