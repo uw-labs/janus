@@ -1,7 +1,6 @@
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::error::KafkaError;
@@ -17,7 +16,6 @@ use rdkafka::types::RDKafkaType;
 
 /// Publishes messages to Kafka
 pub struct KafkaPublisher {
-    producer: Arc<FutureProducer>,
     messages_tx: Sender<PublisherMessage>,
     config: Config,
 }
@@ -40,26 +38,22 @@ impl KafkaPublisher {
 
         let producer: FutureProducer = config.create()?;
 
-        let producer = Arc::new(producer);
-
         let (messages_tx, messages_rx) = mpsc::channel(buffer_size);
 
-        let acker = PublisherAcker::new(producer.clone(), messages_rx);
+        let acker = PublisherAcker::new(producer, messages_rx);
 
         Ok((
             Self {
-                producer,
                 messages_tx,
                 config,
             },
             acker,
         ))
     }
-}
 
-impl Drop for KafkaPublisher {
-    fn drop(&mut self) {
-        self.producer.flush(rdkafka::util::Timeout::Never);
+    /// Creates a KafkaPublisher healthcheck.
+    pub fn status(&self) -> KafkaPublisherStatus {
+        KafkaPublisherStatus::new(self.config.clone())
     }
 }
 
@@ -100,7 +94,19 @@ impl<M: MessageExt> Sink<M> for KafkaPublisher {
     }
 }
 
-impl Statuser for KafkaPublisher {
+/// Allows a healthcheck to be performed on the Kafka publisher.
+#[derive(Clone, Debug)]
+pub struct KafkaPublisherStatus {
+    config: Config,
+}
+
+impl KafkaPublisherStatus {
+    fn new(config: Config) -> Self {
+        Self { config }
+    }
+}
+
+impl Statuser for KafkaPublisherStatus {
     type Error = KafkaError;
 
     fn status(&self) -> Result<(), Self::Error> {
@@ -121,12 +127,12 @@ impl Statuser for KafkaPublisher {
 
 /// Acknowledges messages from the Publisher.
 pub struct PublisherAcker {
-    producer: Arc<FutureProducer>,
+    producer: FutureProducer,
     messages_rx: Receiver<PublisherMessage>,
 }
 
 impl PublisherAcker {
-    fn new(producer: Arc<FutureProducer>, messages_rx: Receiver<PublisherMessage>) -> Self {
+    fn new(producer: FutureProducer, messages_rx: Receiver<PublisherMessage>) -> Self {
         Self {
             producer,
             messages_rx,
@@ -172,6 +178,12 @@ impl Stream for PublisherAcker {
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+impl Drop for PublisherAcker {
+    fn drop(&mut self) {
+        self.producer.flush(rdkafka::util::Timeout::Never);
     }
 }
 

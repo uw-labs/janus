@@ -22,8 +22,12 @@ use futures_util::stream::TryStreamExt;
 use janus::{AckHandler, AckMessage, Message};
 
 pub use crate::error::{KafkaError, OffsetError};
-pub use crate::publisher::{KafkaPublisher, PublisherAcker, PublisherConfig, PublisherMessage};
-pub use crate::subscriber::{KafkaSubscriber, Offset, SubscriberAcker, SubscriberConfig};
+pub use crate::publisher::{
+    KafkaPublisher, KafkaPublisherStatus, PublisherAcker, PublisherConfig, PublisherMessage,
+};
+pub use crate::subscriber::{
+    KafkaSubscriber, KafkaSubscriberStatus, Offset, SubscriberAcker, SubscriberConfig,
+};
 
 pub use rdkafka::util::AsyncRuntime;
 

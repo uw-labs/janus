@@ -67,6 +67,11 @@ impl<R: AsyncRuntime> KafkaSubscriber<R> {
             acker,
         ))
     }
+
+    /// Creates a KafkaSubscriber healthcheck.
+    pub fn status(&self) -> KafkaSubscriberStatus {
+        KafkaSubscriberStatus::new(self.config.clone())
+    }
 }
 
 impl<R: AsyncRuntime> fmt::Debug for KafkaSubscriber<R> {
@@ -101,7 +106,19 @@ impl<R: AsyncRuntime> Stream for KafkaSubscriber<R> {
     }
 }
 
-impl<R: AsyncRuntime> Statuser for KafkaSubscriber<R> {
+/// Allows a healthcheck to be performed on the Kafka subscriber.
+#[derive(Clone, Debug)]
+pub struct KafkaSubscriberStatus {
+    config: Config,
+}
+
+impl KafkaSubscriberStatus {
+    fn new(config: Config) -> Self {
+        Self { config }
+    }
+}
+
+impl Statuser for KafkaSubscriberStatus {
     type Error = KafkaError;
 
     fn status(&self) -> Result<(), Self::Error> {

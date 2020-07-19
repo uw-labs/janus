@@ -25,7 +25,9 @@ async fn end_to_end() {
 
     let (mut publisher, mut pub_acker) = KafkaPublisher::new(pub_config, BUFFER_SIZE).unwrap();
 
-    publisher.status().unwrap();
+    let pub_status = publisher.status();
+
+    pub_status.status().unwrap();
 
     let messages = vec![
         String::from("message-1"),
@@ -60,7 +62,9 @@ async fn end_to_end() {
     let (mut subscriber, mut sub_acker): (KafkaSubscriber<TokioRuntime>, _) =
         KafkaSubscriber::new(sub_config, &[TOPIC], BUFFER_SIZE).unwrap();
 
-    subscriber.status().unwrap();
+    let sub_status = subscriber.status();
+
+    sub_status.status().unwrap();
 
     let (messages_tx, messages_rx) = futures_channel::mpsc::channel(messages.len());
 
