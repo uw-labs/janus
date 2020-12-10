@@ -15,6 +15,7 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::types::RDKafkaType;
 
 /// Publishes messages to Kafka
+#[derive(Clone)]
 pub struct KafkaPublisher {
     messages_tx: Sender<PublisherMessage>,
     config: Config,
