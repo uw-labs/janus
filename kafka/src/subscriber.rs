@@ -230,7 +230,7 @@ impl<'a> IntoConfig for SubscriberConfig<'a> {
 }
 
 /// Position for the offset when no initial value.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Offset {
     /// Resets the offset to the smallest offset.
     Earliest,
