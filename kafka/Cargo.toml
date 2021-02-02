@@ -1,6 +1,6 @@
 [package]
 name = "janus-kafka"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Scott Raine <me@nylar.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -18,7 +18,7 @@ futures-sink = "0.3"
 futures-util = "0.3"
 janus = { version = "0.2", path = "../" }
 owning_ref = "0.4"
-prometheus = { version = "0.9", default-features = false, optional = true }
+prometheus = { version = "0.11", default-features = false, optional = true }
 rdkafka = { version = "0.24", default-features = false, features = ["libz"] }
 serde = { version = "1", optional = true }
 smol = { version = "0.1", optional = true }
