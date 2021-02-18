@@ -19,17 +19,15 @@ futures-util = "0.3"
 janus = { version = "0.2", path = "../" }
 owning_ref = "0.4"
 prometheus = { version = "0.11", default-features = false, optional = true }
-rdkafka = { version = "0.24", default-features = false, features = ["libz"] }
+rdkafka = { version = "0.25", default-features = false, features = ["libz"] }
 serde = { version = "1", optional = true }
-smol = { version = "0.1", optional = true }
 
 [features]
 default = ["tokio-rt"]
 tokio-rt = ["rdkafka/tokio"]
 serde1 = ["serde"]
-smol-rt = ["smol"]
 instrumented = ["prometheus"]
 
 [dev-dependencies]
 futures-util = { version = "0.3", features = ["sink"] }
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "1", features = ["full"] }

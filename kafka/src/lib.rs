@@ -29,11 +29,6 @@ pub use crate::subscriber::{
     KafkaSubscriber, KafkaSubscriberStatus, Offset, SubscriberAcker, SubscriberConfig,
 };
 
-pub use rdkafka::util::AsyncRuntime;
-
-#[cfg(feature = "smol-rt")]
-pub use crate::smol::SmolRuntime;
-
 #[cfg(feature = "tokio-rt")]
 pub use rdkafka::util::TokioRuntime;
 

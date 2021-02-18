@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
-async-std = { version = "1", features = ["attributes", "unstable"]}
+async-std = { version = "1", features = ["attributes", "unstable"] }
 futures = "0.3"
 janus = { version = "0.2", path = "../../" }
-janus-kafka = { version = "0.1", path = "../../kafka", default-features = false, features = ["smol-rt"] }
+janus-kafka = { version = "0.2", path = "../../kafka", default-features = false }
 structopt = "0.3"

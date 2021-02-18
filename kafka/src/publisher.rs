@@ -11,7 +11,7 @@ use futures_core::Stream;
 use futures_sink::Sink;
 use janus::{AckHandler, Message, Publisher, Statuser};
 use rdkafka::client::Client;
-use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
 use rdkafka::types::RDKafkaType;
 
 /// Publishes messages to Kafka

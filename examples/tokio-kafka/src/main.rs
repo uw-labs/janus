@@ -3,7 +3,6 @@ use futures::{SinkExt, TryFutureExt, TryStreamExt};
 use janus::{Message, Publisher, Subscriber};
 use janus_kafka::{
     KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
-    TokioRuntime,
 };
 use structopt::StructOpt;
 
@@ -76,8 +75,7 @@ async fn main() -> Result<(), Error> {
 
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let (subscriber, acker): (KafkaSubscriber<TokioRuntime>, _) =
-                KafkaSubscriber::new(config, topics, buffer_size)?;
+            let (subscriber, acker) = KafkaSubscriber::new(config, topics, buffer_size)?;
 
             let handler_task = tokio::spawn(message_handler(subscriber));
             let acker_task =

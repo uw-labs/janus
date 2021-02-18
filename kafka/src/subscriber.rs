@@ -4,10 +4,9 @@ use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
 
 use crate::error::{KafkaError, OffsetError};
-use crate::{AsyncRuntime, Config, IntoConfig, MessageExt};
+use crate::{Config, IntoConfig, MessageExt};
 
 use futures_channel::mpsc::{self, Receiver, Sender};
 use futures_core::Stream;
@@ -18,21 +17,19 @@ use rdkafka::consumer::{Consumer, DefaultConsumerContext, MessageStream, StreamC
 use rdkafka::message::Message as _;
 use rdkafka::topic_partition_list::{self, TopicPartitionList};
 use rdkafka::types::RDKafkaType;
+use rdkafka::util::DefaultRuntime;
 
 /// Consumes messages from Kafka
-pub struct KafkaSubscriber<
-    #[cfg(feature = "tokio-rt")] R = rdkafka::util::TokioRuntime,
-    #[cfg(not(feature = "tokio-rt"))] R,
-> where
-    R: AsyncRuntime,
-{
-    upstream:
-        OwningHandle<Arc<StreamConsumer>, Box<MessageStream<'static, DefaultConsumerContext, R>>>,
+pub struct KafkaSubscriber {
+    upstream: OwningHandle<
+        Arc<StreamConsumer>,
+        Box<MessageStream<'static, DefaultConsumerContext, DefaultRuntime>>,
+    >,
     acks_tx: Sender<SubscriberMessage>,
     config: Config,
 }
 
-impl<R: AsyncRuntime> KafkaSubscriber<R> {
+impl KafkaSubscriber {
     /// Creates a new consumer and acker.
     pub fn new<C: IntoConfig>(
         config: C,
@@ -59,7 +56,7 @@ impl<R: AsyncRuntime> KafkaSubscriber<R> {
                 upstream: OwningHandle::new_with_fn(consumer, |c| {
                     let cf = unsafe { &*c };
 
-                    Box::new(cf.start_with_runtime(Duration::from_millis(100), false))
+                    Box::new(cf.stream())
                 }),
                 acks_tx,
                 config,
@@ -74,18 +71,18 @@ impl<R: AsyncRuntime> KafkaSubscriber<R> {
     }
 }
 
-impl<R: AsyncRuntime> fmt::Debug for KafkaSubscriber<R> {
+impl fmt::Debug for KafkaSubscriber {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KafkaSubscriber").finish()
     }
 }
 
-impl<R: AsyncRuntime> Subscriber for KafkaSubscriber<R> {
+impl Subscriber for KafkaSubscriber {
     type Message = SubscriberMessage;
     type Error = KafkaError;
 }
 
-impl<R: AsyncRuntime> Stream for KafkaSubscriber<R> {
+impl Stream for KafkaSubscriber {
     type Item = Result<AckMessage<SubscriberMessage>, <Self as Subscriber>::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -161,11 +158,13 @@ impl Stream for SubscriberAcker {
         match Pin::new(&mut self.acks_rx).poll_next(cx) {
             Poll::Ready(Some(m)) => {
                 let mut tpl = TopicPartitionList::new();
-                tpl.add_partition_offset(
+                if let Err(err) = tpl.add_partition_offset(
                     &m.topic,
                     m.partition,
                     topic_partition_list::Offset::Offset(m.offset + 1),
-                );
+                ) {
+                    return Poll::Ready(Some(Ok(Err((m, err.into())))));
+                }
 
                 match self.consumer.store_offsets(&tpl) {
                     Ok(_) => Poll::Ready(Some(Ok(Ok(m)))),

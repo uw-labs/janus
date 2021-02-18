@@ -3,8 +3,7 @@ use async_std::prelude::*;
 use futures::{SinkExt, TryFutureExt, TryStreamExt};
 use janus::{Message, Publisher, Subscriber};
 use janus_kafka::{
-    KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SmolRuntime,
-    SubscriberConfig,
+    KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
 };
 use structopt::StructOpt;
 
@@ -73,8 +72,7 @@ async fn main() -> Result<(), Error> {
 
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let (subscriber, acker): (KafkaSubscriber<SmolRuntime>, _) =
-                KafkaSubscriber::new(config, topics, buffer_size)?;
+            let (subscriber, acker) = KafkaSubscriber::new(config, topics, buffer_size)?;
 
             message_handler(subscriber)
                 .try_join(janus_kafka::noop_subscriber_ack_handler(acker).map_err(Error::new))

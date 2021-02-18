@@ -8,7 +8,6 @@ use futures_util::{
 use janus::{Message, Statuser};
 use janus_kafka::{
     KafkaPublisher, KafkaSubscriber, Offset, PublisherConfig, PublisherMessage, SubscriberConfig,
-    TokioRuntime,
 };
 
 const BROKERS: &str = "localhost:9092";
@@ -59,7 +58,7 @@ async fn end_to_end() {
         offset: Offset::Earliest,
     };
 
-    let (mut subscriber, mut sub_acker): (KafkaSubscriber<TokioRuntime>, _) =
+    let (mut subscriber, mut sub_acker) =
         KafkaSubscriber::new(sub_config, &[TOPIC], BUFFER_SIZE).unwrap();
 
     let sub_status = subscriber.status();

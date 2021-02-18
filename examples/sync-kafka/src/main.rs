@@ -7,7 +7,7 @@ use futures::SinkExt;
 use janus::{AckHandler, Message, Publisher, Subscriber};
 use janus_kafka::{
     KafkaPublisher, KafkaSubscriber, MessageExt, Offset, PublisherConfig, PublisherMessage,
-    SubscriberConfig, TokioRuntime,
+    SubscriberConfig,
 };
 use structopt::StructOpt;
 
@@ -86,18 +86,11 @@ fn main() -> Result<(), Error> {
 
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let (subscriber, acker): (KafkaSubscriber<TokioRuntime>, _) =
-                KafkaSubscriber::new(config, topics, buffer_size).unwrap();
+            let (subscriber, acker) = KafkaSubscriber::new(config, topics, buffer_size).unwrap();
 
             let threads = vec![
                 spawn(move || {
-                    let rt = tokio::runtime::Builder::new()
-                        .threaded_scheduler()
-                        .enable_all()
-                        .build()
-                        .unwrap();
-
-                    rt.enter(|| message_handler(subscriber).unwrap());
+                    message_handler(subscriber).unwrap();
                 }),
                 spawn(move || {
                     ack_handler(acker).unwrap();
