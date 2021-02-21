@@ -8,6 +8,6 @@ edition = "2018"
 anyhow = "1"
 futures = "0.3"
 janus = { version = "0.2", path = "../../" }
-janus-kafka = { version = "0.3", path = "../../kafka" }
+janus-kafka = { version = "0.4", path = "../../kafka" }
 structopt = "0.3"
 tokio = { version = "1", features = ["full"] }
