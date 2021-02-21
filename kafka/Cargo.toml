@@ -31,3 +31,9 @@ instrumented = ["prometheus"]
 [dev-dependencies]
 futures-util = { version = "0.3", features = ["sink"] }
 tokio = { version = "1", features = ["full"] }
+
+[package.metadata.docs.rs]
+# To build locally:
+# RUSTDOCFLAGS="--cfg doc_cfg" cargo +nightly doc --all-features --no-deps --open
+all-features = true
+rustdoc-args = ["--cfg", "doc_cfg"]

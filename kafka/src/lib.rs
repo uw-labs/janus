@@ -7,13 +7,12 @@
     rust_2018_idioms,
     unreachable_pub
 )]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 mod error;
 mod publisher;
 #[cfg(feature = "serde1")]
 mod serde;
-#[cfg(feature = "smol-rt")]
-mod smol;
 mod subscriber;
 
 use std::future::Future;
@@ -30,9 +29,11 @@ pub use crate::subscriber::{
 };
 
 #[cfg(feature = "tokio-rt")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "tokio-rt")))]
 pub use rdkafka::util::TokioRuntime;
 
 #[cfg(feature = "instrumented")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "instrumented")))]
 pub use prometheus::{opts, Opts};
 
 /// Message extension methods for Kafka messages
@@ -42,25 +43,6 @@ pub trait MessageExt: Message {
 
     /// The key the message is partitioned against.
     fn key(&self) -> Option<&str>;
-}
-
-/// Exposes rdkafka's Config
-pub type Config = rdkafka::config::ClientConfig;
-
-/// IntoConfig builds a Config
-pub trait IntoConfig {
-    /// Creates a config
-    fn into_config(self) -> Config;
-}
-
-impl IntoConfig for std::collections::HashMap<&str, &str> {
-    fn into_config(self) -> Config {
-        let mut config = Config::new();
-        for (key, value) in self {
-            config.set(key, value);
-        }
-        config
-    }
 }
 
 impl<M: MessageExt> MessageExt for AckMessage<M> {
@@ -102,6 +84,7 @@ where
 /// A convenience function to continuously processes acks until an error is
 /// encountered.
 #[cfg(feature = "instrumented")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "instrumented")))]
 pub async fn instrumented_publisher_ack_handler<M, A>(
     mut handler: A,
     opts: prometheus::Opts,
@@ -131,6 +114,7 @@ where
 /// A convenience function to continuously processes acks until an error is
 /// encountered.
 #[cfg(feature = "instrumented")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "instrumented")))]
 pub async fn instrumented_subscriber_ack_handler<M, A>(
     mut handler: A,
     opts: prometheus::Opts,

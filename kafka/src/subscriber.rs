@@ -6,13 +6,14 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::error::{KafkaError, OffsetError};
-use crate::{Config, IntoConfig, MessageExt};
+use crate::MessageExt;
 
 use futures_channel::mpsc::{self, Receiver, Sender};
 use futures_core::Stream;
 use janus::{AckHandler, AckMessage, Message, Statuser, Subscriber};
 use owning_ref::OwningHandle;
 use rdkafka::client::Client;
+use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{Consumer, DefaultConsumerContext, MessageStream, StreamConsumer};
 use rdkafka::message::Message as _;
 use rdkafka::topic_partition_list::{self, TopicPartitionList};
@@ -26,25 +27,21 @@ pub struct KafkaSubscriber {
         Box<MessageStream<'static, DefaultConsumerContext, DefaultRuntime>>,
     >,
     acks_tx: Sender<SubscriberMessage>,
-    config: Config,
+    config: SubscriberConfig,
 }
 
 impl KafkaSubscriber {
     /// Creates a new consumer and acker.
-    pub fn new<C: IntoConfig>(
-        config: C,
-        topics: &[&str],
-        buffer_size: usize,
-    ) -> Result<(Self, SubscriberAcker), KafkaError> {
-        let config = config.into_config();
+    pub fn new(config: SubscriberConfig) -> Result<(Self, SubscriberAcker), KafkaError> {
+        let consumer: StreamConsumer = config.client_config.create()?;
 
-        let consumer: StreamConsumer = config.create()?;
+        let topics = config.topics.iter().map(String::as_str).collect::<Vec<_>>();
 
-        consumer.subscribe(topics)?;
+        consumer.subscribe(&topics)?;
 
         let consumer = Arc::new(consumer);
 
-        let (acks_tx, acks_rx) = mpsc::channel(buffer_size);
+        let (acks_tx, acks_rx) = mpsc::channel(config.buffer_size);
 
         let acker = SubscriberAcker {
             consumer: consumer.clone(),
@@ -106,11 +103,11 @@ impl Stream for KafkaSubscriber {
 /// Allows a healthcheck to be performed on the Kafka subscriber.
 #[derive(Clone, Debug)]
 pub struct KafkaSubscriberStatus {
-    config: Config,
+    config: SubscriberConfig,
 }
 
 impl KafkaSubscriberStatus {
-    fn new(config: Config) -> Self {
+    fn new(config: SubscriberConfig) -> Self {
         Self { config }
     }
 }
@@ -119,10 +116,10 @@ impl Statuser for KafkaSubscriberStatus {
     type Error = KafkaError;
 
     fn status(&self) -> Result<(), Self::Error> {
-        let native_config = self.config.create_native_config()?;
+        let native_config = self.config.client_config.create_native_config()?;
 
         let client = Client::new(
-            &self.config,
+            &self.config.client_config,
             native_config,
             RDKafkaType::RD_KAFKA_CONSUMER,
             DefaultConsumerContext,
@@ -202,29 +199,64 @@ impl MessageExt for SubscriberMessage {
 }
 
 /// Configuration options for a Subscriber
-#[derive(Debug, Default)]
-pub struct SubscriberConfig<'a> {
-    /// Initial list of brokers as a CSV list of broker host or host:port
-    pub brokers: &'a str,
-    /// Client group id string. All clients sharing the same group.id belong to the same group.
-    pub group_id: &'a str,
-    /// Position for the offset when no initial value.
-    pub offset: Offset,
+#[derive(Clone, Debug)]
+pub struct SubscriberConfig {
+    client_config: ClientConfig,
+    buffer_size: usize,
+    topics: Vec<String>,
 }
 
-impl<'a> IntoConfig for SubscriberConfig<'a> {
-    fn into_config(self) -> Config {
-        let mut config = Config::new();
+impl Default for SubscriberConfig {
+    fn default() -> Self {
+        let mut client_config = ClientConfig::new();
+        client_config.set("enable.auto.offset.store", "false");
+        client_config.set("auto.commit.interval.ms", "500");
 
-        config.set("bootstrap.servers", self.brokers);
-        config.set("group.id", self.group_id);
-        config.set("auto.offset.reset", &self.offset.to_string());
-        config.set("enable.auto.commit", "true");
-        config.set("enable.partition.eof", "false");
-        config.set("enable.auto.offset.store", "false");
-        config.set("auto.commit.interval.ms", "500");
+        Self {
+            client_config,
+            buffer_size: 1,
+            topics: Vec::new(),
+        }
+    }
+}
 
-        config
+impl SubscriberConfig {
+    /// Initial list of brokers as a CSV list of broker host or host:port
+    pub fn brokers(mut self, brokers: &str) -> Self {
+        self.client_config.set("bootstrap.servers", brokers);
+        self
+    }
+
+    /// Client group id string. All clients sharing the same group.id belong to the same group.
+    pub fn group_id(mut self, group_id: &str) -> Self {
+        self.client_config.set("group.id", group_id);
+        self
+    }
+
+    /// Position for the offset when no initial value.
+    pub fn offset(mut self, offset: Offset) -> Self {
+        self.client_config
+            .set("auto.offset.reset", offset.to_string());
+        self
+    }
+
+    /// Capacity of ack channel, defaults to 1. Change this to increase consumer throughput.
+    pub fn buffer_size(mut self, buffer_size: usize) -> Self {
+        self.buffer_size = buffer_size;
+        self
+    }
+
+    /// List of topics to subscribe to.
+    pub fn topics(mut self, topics: &[&str]) -> Self {
+        self.topics = topics.into_iter().map(ToString::to_string).collect();
+        self
+    }
+
+    /// Set a librdkafka config directly, for a list of available configuration, see:
+    /// [configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
+    pub fn set(mut self, key: &str, value: &str) -> Self {
+        self.client_config.set(key, value);
+        self
     }
 }
 

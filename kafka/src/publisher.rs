@@ -4,13 +4,14 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use crate::error::KafkaError;
-use crate::{Config, IntoConfig, MessageExt};
+use crate::MessageExt;
 
 use futures_channel::mpsc::{self, Receiver, Sender};
 use futures_core::Stream;
 use futures_sink::Sink;
 use janus::{AckHandler, Message, Publisher, Statuser};
 use rdkafka::client::Client;
+use rdkafka::config::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
 use rdkafka::types::RDKafkaType;
 
@@ -18,7 +19,7 @@ use rdkafka::types::RDKafkaType;
 #[derive(Clone)]
 pub struct KafkaPublisher {
     messages_tx: Sender<PublisherMessage>,
-    config: Config,
+    config: PublisherConfig,
 }
 
 impl fmt::Debug for KafkaPublisher {
@@ -31,15 +32,10 @@ impl fmt::Debug for KafkaPublisher {
 
 impl KafkaPublisher {
     /// Creates a new publisher and acker.
-    pub fn new<C: IntoConfig>(
-        config: C,
-        buffer_size: usize,
-    ) -> Result<(Self, PublisherAcker), KafkaError> {
-        let config = config.into_config();
+    pub fn new(config: PublisherConfig) -> Result<(Self, PublisherAcker), KafkaError> {
+        let producer: FutureProducer = config.client_config.create()?;
 
-        let producer: FutureProducer = config.create()?;
-
-        let (messages_tx, messages_rx) = mpsc::channel(buffer_size);
+        let (messages_tx, messages_rx) = mpsc::channel(config.buffer_size);
 
         let acker = PublisherAcker::new(producer, messages_rx);
 
@@ -98,11 +94,11 @@ impl<M: MessageExt> Sink<M> for KafkaPublisher {
 /// Allows a healthcheck to be performed on the Kafka publisher.
 #[derive(Clone, Debug)]
 pub struct KafkaPublisherStatus {
-    config: Config,
+    config: PublisherConfig,
 }
 
 impl KafkaPublisherStatus {
-    fn new(config: Config) -> Self {
+    fn new(config: PublisherConfig) -> Self {
         Self { config }
     }
 }
@@ -111,10 +107,10 @@ impl Statuser for KafkaPublisherStatus {
     type Error = KafkaError;
 
     fn status(&self) -> Result<(), Self::Error> {
-        let native_config = self.config.create_native_config()?;
+        let native_config = self.config.client_config.create_native_config()?;
 
         let client = Client::new(
-            &self.config,
+            &self.config.client_config,
             native_config,
             RDKafkaType::RD_KAFKA_PRODUCER,
             rdkafka::consumer::DefaultConsumerContext,
@@ -247,21 +243,44 @@ impl PublisherMessage {
 }
 
 /// Configuration options for a Publisher
-#[derive(Debug, Default)]
-pub struct PublisherConfig<'a> {
+#[derive(Clone, Debug)]
+pub struct PublisherConfig {
     /// Initial list of brokers as a CSV list of broker host or host:port
-    pub brokers: &'a str,
+    client_config: ClientConfig,
+    buffer_size: usize,
 }
 
-impl<'a> IntoConfig for PublisherConfig<'a> {
-    fn into_config(self) -> Config {
-        let mut config = Config::new();
+impl Default for PublisherConfig {
+    fn default() -> Self {
+        let mut client_config = ClientConfig::new();
+        client_config.set("partitioner", "fnv1a_random");
+        client_config.set("message.send.max.retries", "0");
+        client_config.set("queue.buffering.max.ms", "0");
 
-        config.set("bootstrap.servers", self.brokers);
-        config.set("message.send.max.retries", "0");
-        config.set("queue.buffering.max.ms", "0");
-        config.set("partitioner", "fnv1a_random");
+        Self {
+            client_config,
+            buffer_size: 1,
+        }
+    }
+}
 
-        config
+impl PublisherConfig {
+    /// Initial list of brokers as a CSV list of broker host or host:port
+    pub fn brokers(mut self, brokers: &str) -> Self {
+        self.client_config.set("bootstrap.servers", brokers);
+        self
+    }
+
+    /// Capacity of messages channel, defaults to 1. Change this to increase producer throughput.
+    pub fn buffer_size(mut self, buffer_size: usize) -> Self {
+        self.buffer_size = buffer_size;
+        self
+    }
+
+    /// Set a librdkafka config directly, for a list of available configuration, see:
+    /// [configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md)
+    pub fn set(mut self, key: &str, value: &str) -> Self {
+        self.client_config.set(key, value);
+        self
     }
 }

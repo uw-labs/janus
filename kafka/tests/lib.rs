@@ -20,9 +20,11 @@ const BUFFER_SIZE: usize = 10;
 async fn end_to_end() {
     let (sent_tx, sent_rx) = futures_channel::oneshot::channel();
 
-    let pub_config = PublisherConfig { brokers: BROKERS };
+    let pub_config = PublisherConfig::default()
+        .brokers(BROKERS)
+        .buffer_size(BUFFER_SIZE);
 
-    let (mut publisher, mut pub_acker) = KafkaPublisher::new(pub_config, BUFFER_SIZE).unwrap();
+    let (mut publisher, mut pub_acker) = KafkaPublisher::new(pub_config).unwrap();
 
     let pub_status = publisher.status();
 
@@ -52,14 +54,14 @@ async fn end_to_end() {
         sent_tx.send(()).unwrap();
     };
 
-    let sub_config = SubscriberConfig {
-        brokers: BROKERS,
-        group_id: GROUP_ID,
-        offset: Offset::Earliest,
-    };
+    let sub_config = SubscriberConfig::default()
+        .brokers(BROKERS)
+        .group_id(GROUP_ID)
+        .offset(Offset::Earliest)
+        .buffer_size(BUFFER_SIZE)
+        .topics(&[TOPIC]);
 
-    let (mut subscriber, mut sub_acker) =
-        KafkaSubscriber::new(sub_config, &[TOPIC], BUFFER_SIZE).unwrap();
+    let (mut subscriber, mut sub_acker) = KafkaSubscriber::new(sub_config).unwrap();
 
     let sub_status = subscriber.status();
 
