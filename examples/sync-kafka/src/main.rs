@@ -52,9 +52,11 @@ fn main() -> Result<(), Error> {
             topic,
             buffer_size,
         } => {
-            let config = PublisherConfig { brokers: &brokers };
+            let config = PublisherConfig::default()
+                .brokers(&brokers)
+                .buffer_size(buffer_size);
 
-            let (publisher, acker) = KafkaPublisher::new(config, buffer_size)?;
+            let (publisher, acker) = KafkaPublisher::new(config)?;
 
             let threads = vec![
                 spawn(move || {
@@ -78,15 +80,16 @@ fn main() -> Result<(), Error> {
             topics,
             buffer_size,
         } => {
-            let config = SubscriberConfig {
-                brokers: &brokers,
-                group_id: &group_id,
-                offset,
-            };
-
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let (subscriber, acker) = KafkaSubscriber::new(config, topics, buffer_size).unwrap();
+            let config = SubscriberConfig::default()
+                .brokers(&brokers)
+                .group_id(&group_id)
+                .offset(offset)
+                .topics(topics)
+                .buffer_size(buffer_size);
+
+            let (subscriber, acker) = KafkaSubscriber::new(config)?;
 
             let threads = vec![
                 spawn(move || {

@@ -48,9 +48,11 @@ async fn main() -> Result<(), Error> {
             topic,
             buffer_size,
         } => {
-            let config = PublisherConfig { brokers: &brokers };
+            let config = PublisherConfig::default()
+                .brokers(&brokers)
+                .buffer_size(buffer_size);
 
-            let (publisher, acker) = KafkaPublisher::new(config, buffer_size)?;
+            let (publisher, acker) = KafkaPublisher::new(config)?;
 
             let publisher_task = tokio::spawn(publish_message(publisher, topic.to_owned()));
             let acker_task =
@@ -67,15 +69,16 @@ async fn main() -> Result<(), Error> {
             topics,
             buffer_size,
         } => {
-            let config = SubscriberConfig {
-                brokers: &brokers,
-                group_id: &group_id,
-                offset,
-            };
-
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let (subscriber, acker) = KafkaSubscriber::new(config, topics, buffer_size)?;
+            let config = SubscriberConfig::default()
+                .brokers(&brokers)
+                .group_id(&group_id)
+                .offset(offset)
+                .topics(topics)
+                .buffer_size(buffer_size);
+
+            let (subscriber, acker) = KafkaSubscriber::new(config)?;
 
             let handler_task = tokio::spawn(message_handler(subscriber));
             let acker_task =

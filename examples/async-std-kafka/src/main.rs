@@ -49,9 +49,11 @@ async fn main() -> Result<(), Error> {
             topic,
             buffer_size,
         } => {
-            let config = PublisherConfig { brokers: &brokers };
+            let config = PublisherConfig::default()
+                .brokers(&brokers)
+                .buffer_size(buffer_size);
 
-            let (publisher, acker) = KafkaPublisher::new(config, buffer_size)?;
+            let (publisher, acker) = KafkaPublisher::new(config)?;
 
             publish_message(publisher, &topic)
                 .try_join(janus_kafka::noop_publisher_ack_handler(acker).map_err(Error::new))
@@ -64,15 +66,16 @@ async fn main() -> Result<(), Error> {
             topics,
             buffer_size,
         } => {
-            let config = SubscriberConfig {
-                brokers: &brokers,
-                group_id: &group_id,
-                offset,
-            };
-
             let topics = &topics.split(',').collect::<Vec<&str>>();
 
-            let (subscriber, acker) = KafkaSubscriber::new(config, topics, buffer_size)?;
+            let config = SubscriberConfig::default()
+                .brokers(&brokers)
+                .group_id(&group_id)
+                .offset(offset)
+                .topics(topics)
+                .buffer_size(buffer_size);
+
+            let (subscriber, acker) = KafkaSubscriber::new(config)?;
 
             message_handler(subscriber)
                 .try_join(janus_kafka::noop_subscriber_ack_handler(acker).map_err(Error::new))
