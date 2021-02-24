@@ -26,7 +26,7 @@ async fn end_to_end() {
 
     let (mut publisher, mut pub_acker) = KafkaPublisher::new(pub_config).unwrap();
 
-    let pub_status = publisher.status();
+    let pub_status = publisher.status().unwrap();
 
     pub_status.status().unwrap();
 
@@ -63,7 +63,7 @@ async fn end_to_end() {
 
     let (mut subscriber, mut sub_acker) = KafkaSubscriber::new(sub_config).unwrap();
 
-    let sub_status = subscriber.status();
+    let sub_status = subscriber.status().unwrap();
 
     sub_status.status().unwrap();
 

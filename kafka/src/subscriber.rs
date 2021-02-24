@@ -63,7 +63,7 @@ impl KafkaSubscriber {
     }
 
     /// Creates a KafkaSubscriber healthcheck.
-    pub fn status(&self) -> KafkaSubscriberStatus {
+    pub fn status(&self) -> Result<KafkaSubscriberStatus, KafkaError> {
         KafkaSubscriberStatus::new(self.config.clone())
     }
 }
@@ -101,14 +101,31 @@ impl Stream for KafkaSubscriber {
 }
 
 /// Allows a healthcheck to be performed on the Kafka subscriber.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct KafkaSubscriberStatus {
-    config: SubscriberConfig,
+    client: Arc<Client<DefaultConsumerContext>>,
 }
 
 impl KafkaSubscriberStatus {
-    fn new(config: SubscriberConfig) -> Self {
-        Self { config }
+    fn new(config: SubscriberConfig) -> Result<Self, KafkaError> {
+        let native_config = config.client_config.create_native_config()?;
+
+        let client = Client::new(
+            &config.client_config,
+            native_config,
+            RDKafkaType::RD_KAFKA_CONSUMER,
+            DefaultConsumerContext,
+        )?;
+
+        let client = Arc::new(client);
+
+        Ok(Self { client })
+    }
+}
+
+impl fmt::Debug for KafkaSubscriberStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KafkaSubscriberStatus").finish()
     }
 }
 
@@ -116,16 +133,8 @@ impl Statuser for KafkaSubscriberStatus {
     type Error = KafkaError;
 
     fn status(&self) -> Result<(), Self::Error> {
-        let native_config = self.config.client_config.create_native_config()?;
-
-        let client = Client::new(
-            &self.config.client_config,
-            native_config,
-            RDKafkaType::RD_KAFKA_CONSUMER,
-            DefaultConsumerContext,
-        )?;
-
-        client.fetch_metadata(None, Some(std::time::Duration::from_secs(1)))?;
+        self.client
+            .fetch_metadata(None, Some(std::time::Duration::from_secs(1)))?;
 
         Ok(())
     }

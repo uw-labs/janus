@@ -1,6 +1,7 @@
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::error::KafkaError;
@@ -10,10 +11,10 @@ use futures_channel::mpsc::{self, Receiver, Sender};
 use futures_core::Stream;
 use futures_sink::Sink;
 use janus::{AckHandler, Message, Publisher, Statuser};
-use rdkafka::client::Client;
 use rdkafka::config::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
 use rdkafka::types::RDKafkaType;
+use rdkafka::{client::Client, producer::DefaultProducerContext};
 
 /// Publishes messages to Kafka
 #[derive(Clone)]
@@ -49,7 +50,7 @@ impl KafkaPublisher {
     }
 
     /// Creates a KafkaPublisher healthcheck.
-    pub fn status(&self) -> KafkaPublisherStatus {
+    pub fn status(&self) -> Result<KafkaPublisherStatus, KafkaError> {
         KafkaPublisherStatus::new(self.config.clone())
     }
 }
@@ -92,14 +93,31 @@ impl<M: MessageExt> Sink<M> for KafkaPublisher {
 }
 
 /// Allows a healthcheck to be performed on the Kafka publisher.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct KafkaPublisherStatus {
-    config: PublisherConfig,
+    client: Arc<Client<DefaultProducerContext>>,
 }
 
 impl KafkaPublisherStatus {
-    fn new(config: PublisherConfig) -> Self {
-        Self { config }
+    fn new(config: PublisherConfig) -> Result<Self, KafkaError> {
+        let native_config = config.client_config.create_native_config()?;
+
+        let client = Client::new(
+            &config.client_config,
+            native_config,
+            RDKafkaType::RD_KAFKA_PRODUCER,
+            DefaultProducerContext,
+        )?;
+
+        let client = Arc::new(client);
+
+        Ok(Self { client })
+    }
+}
+
+impl fmt::Debug for KafkaPublisherStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KafkaPublisherStatus").finish()
     }
 }
 
@@ -107,16 +125,8 @@ impl Statuser for KafkaPublisherStatus {
     type Error = KafkaError;
 
     fn status(&self) -> Result<(), Self::Error> {
-        let native_config = self.config.client_config.create_native_config()?;
-
-        let client = Client::new(
-            &self.config.client_config,
-            native_config,
-            RDKafkaType::RD_KAFKA_PRODUCER,
-            rdkafka::consumer::DefaultConsumerContext,
-        )?;
-
-        client.fetch_metadata(None, Some(std::time::Duration::from_secs(1)))?;
+        self.client
+            .fetch_metadata(None, Some(std::time::Duration::from_secs(1)))?;
 
         Ok(())
     }
