@@ -100,7 +100,6 @@ where
         fut.await
             .map(|m| {
                 counter.with_label_values(&["success", m.topic()]).inc();
-                ()
             })
             .map_err(|(m, e)| {
                 counter.with_label_values(&["error", m.topic()]).inc();
@@ -128,7 +127,6 @@ where
     while let Some(res) = handler.try_next().await? {
         res.map(|m| {
             counter.with_label_values(&["success", m.topic()]).inc();
-            ()
         })
         .map_err(|(m, e)| {
             counter.with_label_values(&["error", m.topic()]).inc();

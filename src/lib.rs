@@ -49,7 +49,7 @@ impl<M> AckMessage<M> {
 
 impl<M: Message> Message for AckMessage<M> {
     fn payload(&self) -> &[u8] {
-        &self.message().payload()
+        self.message().payload()
     }
 }
 

@@ -257,7 +257,7 @@ impl SubscriberConfig {
 
     /// List of topics to subscribe to.
     pub fn topics(mut self, topics: &[&str]) -> Self {
-        self.topics = topics.into_iter().map(ToString::to_string).collect();
+        self.topics = topics.iter().map(ToString::to_string).collect();
         self
     }
 
