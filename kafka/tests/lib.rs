@@ -89,7 +89,7 @@ async fn end_to_end() {
 
     let handle_sub_acks = async {
         for _ in &messages {
-            if let Some(_) = sub_acker.try_next().await.unwrap() {}
+            if sub_acker.try_next().await.unwrap().is_some() {}
         }
     };
 
@@ -103,8 +103,7 @@ async fn end_to_end() {
     let messages_from_kafka = messages_rx.take(messages.len()).collect::<Vec<_>>().await;
 
     let expected_messages: HashSet<_> = HashSet::from_iter(messages.iter().cloned());
-    let actual_messages: HashSet<_> =
-        HashSet::from_iter(messages_from_kafka.iter().map(|x| x.clone()));
+    let actual_messages: HashSet<_> = HashSet::from_iter(messages_from_kafka.iter().cloned());
 
     assert_eq!(expected_messages, actual_messages);
 }
